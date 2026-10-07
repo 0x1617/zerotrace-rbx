@@ -1,0 +1,4 @@
+# keep line endings exactly as committed (batch files break with LF-only endings)
+*.bat -text
+*.ps1 -text
+*.cmd -text
