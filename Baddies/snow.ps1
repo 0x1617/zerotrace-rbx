@@ -1,5 +1,5 @@
-# ZeroTrace macro: Snow (9, 0, 4 + click)
-# Hotkey: F13   |   Stop: Ctrl+Alt+Q
+# ZeroTrace macro: Snow (9, click, 0, click, 4, click)
+# Key: F13
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
 using System;
@@ -39,19 +39,62 @@ public static class ZT {
 }
 "@
 
-function Start-Macro([string]$Name, [string]$KeyName, [uint32]$Vk, [scriptblock]$Action) {
-    if (-not [ZT]::RegisterHotKey([IntPtr]::Zero, 1, 0, $Vk)) {
-        Write-Host "[ZeroTrace] $KeyName is already in use by another program."; exit 1
+# "F13", "Ctrl+F5", "Alt+Shift+Q", "Num5", "Space" ... -> modifier flags + virtual-key code
+function Resolve-Key([string]$s) {
+    if (-not $s) { return $null }
+    $mod = 0; $vk = 0
+    $parts = $s -split '\+'
+    for ($i = 0; $i -lt $parts.Count - 1; $i++) {
+        switch ($parts[$i].Trim().ToLower()) {
+            'alt'   { $mod += 1 }
+            'ctrl'  { $mod += 2 }
+            'shift' { $mod += 4 }
+            default { return $null }
+        }
     }
-    [void][ZT]::RegisterHotKey([IntPtr]::Zero, 2, 0x3, 0x51)   # Ctrl+Alt+Q = stop
-    Write-Host "[ZeroTrace] $Name active.  Hotkey: $KeyName   Stop: Ctrl+Alt+Q"
-    try { while (([ZT]::Next()) -ne 2) { & $Action } }
-    finally { [void][ZT]::UnregisterHotKey([IntPtr]::Zero, 1); [void][ZT]::UnregisterHotKey([IntPtr]::Zero, 2) }
+    $n = $parts[$parts.Count - 1].Trim()
+    if     ($n -match '^f(\d{1,2})$' -and [int]$matches[1] -ge 1 -and [int]$matches[1] -le 24) { $vk = 0x6F + [int]$matches[1] }
+    elseif ($n -match '^[a-z]$')    { $vk = [int][char]$n.ToUpper() }
+    elseif ($n -match '^[0-9]$')    { $vk = 0x30 + [int]$n }
+    elseif ($n -match '^num([0-9])$') { $vk = 0x60 + [int]$matches[1] }
+    else {
+        $map = @{ space=0x20; tab=0x09; enter=0x0D; delete=0x2E; insert=0x2D; home=0x24; end=0x23;
+                  pageup=0x21; pagedown=0x22; left=0x25; up=0x26; right=0x27; down=0x28 }
+        if ($map.ContainsKey($n.ToLower())) { $vk = $map[$n.ToLower()] }
+    }
+    if ($vk -eq 0) { return $null }
+    return [pscustomobject]@{ Mod = $mod; Vk = $vk }
 }
 
-# Virtual-key codes: Esc=0x1B Enter=0x0D  0-9=0x30-0x39  A-Z=0x41-0x5A  F2=0x71 F3=0x72 F13=0x7C
+# The launcher passes the user's saved keybind in $env:ZT_KEY; otherwise the default below is used.
+function Start-Macro([string]$Name, [string]$DefaultKey, [scriptblock]$Action) {
+    $keyStr = $DefaultKey
+    $k = $null
+    if ($env:ZT_KEY) { $k = Resolve-Key $env:ZT_KEY; if ($k) { $keyStr = $env:ZT_KEY } }
+    if (-not $k) { $k = Resolve-Key $DefaultKey }
+    if (-not [ZT]::RegisterHotKey([IntPtr]::Zero, 1, [uint32]$k.Mod, [uint32]$k.Vk)) {
+        Write-Host "[ZeroTrace] $keyStr is already in use by another program."; exit 1
+    }
+    if ($env:ZT_RUN) { Set-Content -Path $env:ZT_RUN -Value $PID -Encoding ASCII }
+    # when started by the launcher, remove the decrypted temp copy as soon as it is loaded
+    try {
+        if ($PSCommandPath -and ($PSCommandPath -like '*\zt_*\*')) {
+            $dir = Split-Path $PSCommandPath
+            Remove-Item $PSCommandPath -Force
+            Remove-Item $dir -Force -ErrorAction SilentlyContinue
+        }
+    } catch {}
+    Write-Host "[ZeroTrace] $Name active.  Hotkey: $keyStr   (Ctrl+C to stop when run by hand)"
+    try { while ($true) { [void][ZT]::Next(); & $Action } }
+    finally {
+        [void][ZT]::UnregisterHotKey([IntPtr]::Zero, 1)
+        if ($env:ZT_RUN) { Remove-Item $env:ZT_RUN -Force -ErrorAction SilentlyContinue }
+    }
+}
 
-Start-Macro 'Snow (9, 0, 4 + click)' 'F13' 0x7C {
+# Virtual-key codes: Esc=0x1B Enter=0x0D  0-9=0x30-0x39  A-Z=0x41-0x5A
+
+Start-Macro 'Snow' 'F13' {
     [ZT]::Tap(0x39); [ZT]::Wait(20); [ZT]::Click()
     [ZT]::Tap(0x30); [ZT]::Wait(20); [ZT]::Click()
     [ZT]::Tap(0x34); [ZT]::Wait(20); [ZT]::Click()
