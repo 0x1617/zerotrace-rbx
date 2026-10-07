@@ -1,0 +1,3 @@
+Baddies|robloxlog.ps1
+Baddies|roblox_reset.ps1
+Baddies|snow.ps1
