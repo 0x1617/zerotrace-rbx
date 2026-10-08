@@ -101,6 +101,41 @@ if ($env:ZT_MODE -eq 'sync') {
         }
         if (Test-Path $store) { Remove-Item $store -Recurse -Force }
         Move-Item $new $store
+
+        # housekeeping: forget settings / run files of macros that are no longer in the manifest
+        # (never allowed to fail the sync itself)
+        try {
+            $rootDir = Split-Path -Parent $store
+            $valid = @{}; $okRun = @{}
+            foreach ($it in $items) {
+                $valid[($it[0] + '|' + [IO.Path]::GetFileNameWithoutExtension($it[1])).ToLower()] = $true
+                $okRun[("$($it[0])__$($it[1]).run").ToLower()] = $true
+            }
+            $cfgp = Join-Path $rootDir 'config.ini'
+            if (Test-Path $cfgp) {
+                $keep = @()
+                foreach ($cl in (Get-Content $cfgp)) {
+                    if (-not $cl) { continue }
+                    $parts = $cl.Split('=', 2)[0].Split('|')
+                    if ($parts.Count -lt 2 -or $valid.ContainsKey(($parts[0] + '|' + $parts[1]).ToLower())) { $keep += $cl }
+                }
+                [IO.File]::WriteAllLines($cfgp, [string[]]$keep)
+            }
+            $runDir = Join-Path $rootDir 'run'
+            if (Test-Path $runDir) {
+                foreach ($rf in @(Get-ChildItem -Path $runDir -Filter '*.run' -ErrorAction SilentlyContinue)) {
+                    if (-not $okRun.ContainsKey($rf.Name.ToLower())) {
+                        try {
+                            $rp = [int](Get-Content -LiteralPath $rf.FullName | Select-Object -First 1)
+                            $pr = Get-Process -Id $rp -ErrorAction SilentlyContinue
+                            if ($pr -and $pr.ProcessName -eq 'powershell') { Stop-Process -Id $rp -Force }
+                        } catch {}
+                        Remove-Item -LiteralPath $rf.FullName -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+        } catch {}
+
         To 1000
         exit 0
     } catch {
