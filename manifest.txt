@@ -2,3 +2,9 @@
 Baddies|robloxlog.ps1
 Baddies|roblox_reset.ps1
 Baddies|snow.ps1
+Baddies|rpg_reload.ps1
+Baddies|auto_rpg.ps1
+Baddies|auto_taser.ps1
+Baddies|combo.ps1
+Baddies|anti_afk.ps1
+Baddies|auto_clicker.ps1
