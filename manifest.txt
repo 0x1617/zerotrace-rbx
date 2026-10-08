@@ -6,4 +6,3 @@ Baddies|auto_taser.ps1|Auto Taser
 Baddies|robloxlog.ps1|Quick Log
 Baddies|roblox_reset.ps1|Quick Reset
 Baddies|anti_afk.ps1|Anti-AFK
-Baddies|auto_clicker.ps1|Auto Clicker
