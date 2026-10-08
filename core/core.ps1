@@ -56,7 +56,7 @@ if ($env:ZT_MODE -eq 'sync') {
         $i = 0
         foreach ($it in $items) {
             $url = "$base/" + [uri]::EscapeDataString($it[0]) + '/' + [uri]::EscapeDataString($it[1]) + $bust
-            $tmp = [IO.Path]::GetTempFileName()
+            $tmp = Join-Path $new ([guid]::NewGuid().ToString('N') + '.tmp')
             try {
                 Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $tmp -TimeoutSec 30
                 $bytes = [IO.File]::ReadAllBytes($tmp)
@@ -99,8 +99,13 @@ if ($env:ZT_MODE -eq 'run') {
                 if ($par -and $env:ZT_RUN) {
                     $head = "`$par=$par;`$mac=$($mp.Id);`$run='$($env:ZT_RUN -replace "'","''")';"
                     $body = @'
-Wait-Process -Id $par,$mac -Any -ErrorAction SilentlyContinue
-if (Get-Process -Id $par -ErrorAction SilentlyContinue) { exit }
+while ($true) {
+    Start-Sleep -Milliseconds 500
+    $m = Get-Process -Id $mac -ErrorAction SilentlyContinue
+    if (-not $m -or $m.HasExited) { exit }
+    $q = Get-Process -Id $par -ErrorAction SilentlyContinue
+    if (-not $q -or $q.HasExited) { break }
+}
 try { $c = (Get-Content -LiteralPath $run -ErrorAction Stop | Select-Object -First 1).Trim() } catch { exit }
 if ($c -eq "$mac") {
     Stop-Process -Id $mac -Force -ErrorAction SilentlyContinue
@@ -114,6 +119,27 @@ if ($c -eq "$mac") {
         }
         exit 0
     } catch { exit 1 }
+}
+
+if ($env:ZT_MODE -eq 'runs') {
+    $files = @()
+    if ($env:ZT_ACT -eq 'stop') { $files = @($env:ZT_TARGET) }
+    else { $files = @(Get-ChildItem -Path $env:ZT_RUNDIR -Filter '*.run' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }) }
+    foreach ($f in $files) {
+        $id = 0
+        try { $id = [int](Get-Content -LiteralPath $f -ErrorAction Stop | Select-Object -First 1) } catch {}
+        $alive = $false
+        if ($id -gt 0) {
+            $p = Get-Process -Id $id -ErrorAction SilentlyContinue
+            if ($p -and -not $p.HasExited -and $p.ProcessName -eq 'powershell') { $alive = $true }
+        }
+        if ($alive -and $env:ZT_ACT -ne 'prune') {
+            Stop-Process -Id $id -Force -ErrorAction SilentlyContinue
+            $alive = $false
+        }
+        if (-not $alive) { Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue }
+    }
+    exit 0
 }
 
 if ($env:ZT_MODE -eq 'bind') {

@@ -111,6 +111,12 @@ for %%F in ("!sdir!\*.zt") do (
 )
 
 rem --- apply saved keybinds + detect which macros are running ---
+if exist "%RUNDIR%\*.run" (
+    set "ZT_MODE=runs"
+    set "ZT_ACT=prune"
+    set "ZT_RUNDIR=%RUNDIR%"
+    call :ps
+)
 for /l %%i in (1,1,!mc!) do (
     set "mr%%i="
     set "mu%%i="
@@ -119,7 +125,7 @@ for /l %%i in (1,1,!mc!) do (
         set "mu%%i=1"
     )
     set "rf%%i=%RUNDIR%\!game!__!mn%%i!!mx%%i!.run"
-    if exist "!rf%%i!" call :checkrun %%i
+    if exist "!rf%%i!" set "mr%%i=1"
 )
 
 if !mc!==0 if not defined ztfix (
@@ -348,28 +354,22 @@ set /a pn=%~1
 if !pn! GTR !mc! exit /b 1
 exit /b 0
 
-:checkrun
-set "pid="
-set /p "pid=" <"!rf%1!"
-tasklist /fi "pid eq !pid!" /nh 2>nul | find /i "powershell" >nul
-if errorlevel 1 (del "!rf%1!" >nul 2>&1) else set "mr%1=1"
-exit /b
-
 :killrf
-set "pid="
-set /p "pid=" <"!rf%1!"
-if defined pid taskkill /f /fi "pid eq !pid!" /fi "imagename eq powershell.exe" >nul 2>&1
+set "ZT_MODE=runs"
+set "ZT_ACT=stop"
+set "ZT_RUNDIR=%RUNDIR%"
+set "ZT_TARGET=!rf%1!"
+call :ps
 del "!rf%1!" >nul 2>&1
 exit /b
 
 :stopall
-for %%R in ("%RUNDIR%\*.run") do (
-    set "pid="
-    set /p "pid=" <"%%~fR"
-    if defined pid taskkill /f /fi "pid eq !pid!" /fi "imagename eq powershell.exe" >nul 2>&1
-    del "%%~fR" >nul 2>&1
-)
-exit /b
+if not exist "%RUNDIR%\*.run" exit /b 0
+set "ZT_MODE=runs"
+set "ZT_ACT=stopall"
+set "ZT_RUNDIR=%RUNDIR%"
+call :ps
+exit /b 0
 
 :gamelist
 echo   %w%[ SELECT GAME ]%n%
