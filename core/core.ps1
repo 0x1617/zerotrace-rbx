@@ -200,6 +200,30 @@ if ($env:ZT_MODE -eq 'runs') {
     $files = @()
     if ($env:ZT_ACT -eq 'stop') { $files = @($env:ZT_TARGET) }
     else { $files = @(Get-ChildItem -Path $env:ZT_RUNDIR -Filter '*.run' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }) }
+    if ($env:ZT_ACT -eq 'pause' -or $env:ZT_ACT -eq 'resume') {
+        # freeze / unfreeze the macro processes without killing them
+        if (-not ('ZTProc' -as [type])) {
+            Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class ZTProc {
+    [DllImport("ntdll.dll")] public static extern int NtSuspendProcess(IntPtr h);
+    [DllImport("ntdll.dll")] public static extern int NtResumeProcess(IntPtr h);
+}
+"@
+        }
+        foreach ($f in $files) {
+            $pid2 = 0
+            try { $pid2 = [int](Get-Content -LiteralPath $f -ErrorAction Stop | Select-Object -First 1) } catch {}
+            if ($pid2 -le 0) { continue }
+            $pp = Get-Process -Id $pid2 -ErrorAction SilentlyContinue
+            if ($pp -and -not $pp.HasExited -and $pp.ProcessName -eq 'powershell') {
+                if ($env:ZT_ACT -eq 'pause') { [void][ZTProc]::NtSuspendProcess($pp.Handle) }
+                else                         { [void][ZTProc]::NtResumeProcess($pp.Handle) }
+            }
+        }
+        exit 0
+    }
     foreach ($f in $files) {
         $id = 0
         try { $id = [int](Get-Content -LiteralPath $f -ErrorAction Stop | Select-Object -First 1) } catch {}

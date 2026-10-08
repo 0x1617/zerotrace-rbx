@@ -12,6 +12,7 @@ set "CORE=%ROOT%\core"
 set "STORE=%ROOT%\store"
 set "CFG=%ROOT%\config.ini"
 set "RUNDIR=%ROOT%\run"
+set "PFLAG=%ROOT%\run\paused.flag"
 set "ART=%ROOT%\art.txt"
 rem ==================================================
 
@@ -24,6 +25,7 @@ set "g=%ESC%[37m"
 set "r=%ESC%[91m"
 set "d=%ESC%[31m"
 set "gr=%ESC%[92m"
+set "y=%ESC%[93m"
 set "dim=%ESC%[90m"
 set "n=%ESC%[0m"
 
@@ -108,6 +110,7 @@ if exist "%RUNDIR%\*.run" (
     set "ZT_RUNDIR=%RUNDIR%"
     call :ps
 )
+if not exist "%RUNDIR%\*.run" del "%PFLAG%" >nul 2>&1
 for /l %%i in (1,1,!mc!) do (
     set "mr%%i="
     set "mu%%i="
@@ -134,7 +137,13 @@ if !mcc! GTR 9 set /a mcc=9
 set "nl="
 for /l %%i in (1,1,!mcc!) do set "nl=!nl!%%i"
 
-echo   %w%[ MACROS ]%n%   %dim%press a number to start%n%
+set "ptxt=Pause all"
+set "phdr=%dim%press a number to start%n%"
+if exist "%PFLAG%" (
+    set "ptxt=Resume all"
+    set "phdr=%y%PAUSED - press P to resume%n%"
+)
+echo   %w%[ MACROS ]%n%   !phdr!
 echo.
 if !mc!==0 (
     echo   %dim%No macros for this game yet.%n%
@@ -152,14 +161,14 @@ if !mc!==0 (
     )
 )
 echo.
-echo   %r%[1-9]%n% Start  %r%[K]%n% Set key  %r%[S]%n% Stop  %r%[A]%n% Stop all  %r%[O]%n% Slot keys
-echo   %r%[R]%n% Refresh  %r%[B]%n% Back  %r%[0]%n% Exit
+echo   %r%[1-9]%n% Start  %r%[K]%n% Set key  %r%[S]%n% Stop  %r%[A]%n% Stop all  %r%[P]%n% !ptxt!
+echo   %r%[O]%n% Slot keys  %r%[R]%n% Refresh  %r%[B]%n% Back  %r%[0]%n% Exit
 echo.
 
 :macropick
 <nul set /p "=%ESC%[?25l"
 <nul set /p "=  %r%>%n% "
-call :getkey "!nl!KSAORB0"
+call :getkey "!nl!KSAPORB0"
 echo.
 if !ci! LEQ !mcc! (
     set "pn=!ci!"
@@ -169,16 +178,38 @@ set /a "ci-=mcc"
 if !ci!==1 goto dobind
 if !ci!==2 goto dostop
 if !ci!==3 goto dostopall
-if !ci!==4 goto doopt
-if !ci!==5 (
+if !ci!==4 goto dopause
+if !ci!==5 goto doopt
+if !ci!==6 (
     set "ztfix="
     goto macrolist
 )
-if !ci!==6 goto gamelist_back
+if !ci!==7 goto gamelist_back
 goto quit
 
 :dostopall
 call :stopall
+goto macrolist
+
+rem ---------- pause / resume all (freezes the macros, does not stop them) ----------
+:dopause
+if not exist "%RUNDIR%\*.run" (
+    echo   %dim%Nothing is running.%n%
+    goto macropick
+)
+set "ZT_MODE=runs"
+set "ZT_RUNDIR=%RUNDIR%"
+if exist "%PFLAG%" (
+    set "ZT_ACT=resume"
+) else (
+    set "ZT_ACT=pause"
+)
+call :ps
+if "!ZT_ACT!"=="resume" (
+    del "%PFLAG%" >nul 2>&1
+) else (
+    echo paused>"%PFLAG%"
+)
 goto macrolist
 
 rem ---------- rebind a key ----------
@@ -225,6 +256,10 @@ rem ---------- start a macro ----------
 :dolaunch
 if defined mr!pn! (
     echo   %dim%That macro is already running.%n%
+    goto macropick
+)
+if exist "%PFLAG%" (
+    echo   %y%Paused - press P to resume before starting another.%n%
     goto macropick
 )
 rem --- first time this macro is used: ask which key to press ---
@@ -329,6 +364,7 @@ set "nm=!md%1!                         "
 set "ky=!mk%1!          "
 set "st=       "
 if defined mr%1 set "st=%gr%running%n%"
+if defined mr%1 if exist "%PFLAG%" set "st=%y%paused %n%"
 set "cm=%r%!num:~0,4!%n%%w%!nm:~0,16!%n% %dim%!ky:~0,5!%n% !st!"
 exit /b
 
@@ -437,6 +473,7 @@ del "!rf%1!" >nul 2>&1
 exit /b
 
 :stopall
+del "%PFLAG%" >nul 2>&1
 if not exist "%RUNDIR%\*.run" exit /b 0
 set "ZT_MODE=runs"
 set "ZT_ACT=stopall"
