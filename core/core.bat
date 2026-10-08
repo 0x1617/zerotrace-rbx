@@ -70,21 +70,17 @@ echo.
 call :gamelist
 
 :gamepick
-<nul set /p "=%ESC%[?25h"
-set "pick="
-set /p "pick=  %r%>%n% "
-if not defined pick goto gamepick
-if "!pick!"=="0" goto quit
-for /l %%i in (1,1,!gcount!) do (
-    if /i "!pick!"=="%%i" set "sel=%%i"
-    if /i "!pick!"=="!game%%i!" set "sel=%%i"
-)
-if not defined sel (
-    echo   %d%Invalid choice.%n%
-    goto gamepick
-)
-set "gsel=!sel!"
-set "sel="
+<nul set /p "=%ESC%[?25l"
+set /a gcc=gcount
+if !gcc! GTR 9 set /a gcc=9
+set "gl="
+for /l %%i in (1,1,!gcc!) do set "gl=!gl!%%i"
+<nul set /p "=  %r%>%n% "
+choice /c !gl!0 /n >nul
+set /a "ci=!errorlevel!"
+echo.
+if !ci! GTR !gcc! goto quit
+set "gsel=!ci!"
 goto macrolist
 
 rem ===================== MACRO LIST =====================
@@ -133,65 +129,54 @@ if !mc!==0 if not defined ztfix (
     goto macrolist
 )
 
-echo   %w%[ MACROS ]%n%
+set /a mcc=mc
+if !mcc! GTR 9 set /a mcc=9
+set "nl="
+for /l %%i in (1,1,!mcc!) do set "nl=!nl!%%i"
+
+echo   %w%[ MACROS ]%n%   %dim%press a number to start%n%
 echo.
-set "bar=+--------------------------------------------+"
 if !mc!==0 (
     echo   %dim%No macros for this game yet.%n%
 ) else (
-    for /l %%i in (1,2,!mc!) do (
-        set /a "j=%%i+1"
-        call :cell %%i
-        set "cl1=!cm!"
-        set "cl2="
-        set "bar2="
-        if !j! LEQ !mc! (
-            call :cell !j!
-            set "cl2=  !cm!"
-            set "bar2=  %dim%!bar!%n%"
-        )
-        echo   %dim%!bar!%n%!bar2!
-        echo   !cl1!!cl2!
-        echo   %dim%!bar!%n%!bar2!
-    )
+    echo   %dim%#     macro                 key       state%n%
+    for /l %%i in (1,1,!mc!) do call :row %%i
 )
 echo.
-echo   %r%[#]%n% Start   %r%[K]%n% Set key   %r%[S]%n% Stop   %r%[SA]%n% Stop all
-echo   %r%[O]%n% Slot keys   %r%[R]%n% Refresh   %r%[B]%n% Back   %r%[0]%n% Exit
+echo   %r%[1-9]%n% Start  %r%[K]%n% Set key  %r%[S]%n% Stop  %r%[A]%n% Stop all  %r%[O]%n% Slot keys
+echo   %r%[R]%n% Refresh  %r%[B]%n% Back  %r%[0]%n% Exit
 echo.
 
 :macropick
-<nul set /p "=%ESC%[?25h"
-set "pick="
-set /p "pick=  %r%>%n% "
-if not defined pick goto macropick
-if "!pick!"=="0" goto quit
-if /i "!pick!"=="b" goto gamelist_back
-if /i "!pick!"=="r" (
+<nul set /p "=%ESC%[?25l"
+<nul set /p "=  %r%>%n% "
+choice /c !nl!KSAORB0 /n >nul
+set /a "ci=!errorlevel!"
+echo.
+if !ci! LEQ !mcc! (
+    set "pn=!ci!"
+    goto dolaunch
+)
+set /a "ci-=mcc"
+if !ci!==1 goto dobind
+if !ci!==2 goto dostop
+if !ci!==3 goto dostopall
+if !ci!==4 goto doopt
+if !ci!==5 (
     set "ztfix="
     goto macrolist
 )
-if /i "!pick!"=="sa" (
-    call :stopall
-    goto macrolist
-)
-set "c1=!pick:~0,1!"
-set "rest=!pick:~1!"
-if /i "!c1!"=="k" goto dobind
-if /i "!c1!"=="s" goto dostop
-if /i "!c1!"=="o" goto doopt
-goto dolaunch
+if !ci!==6 goto gamelist_back
+goto quit
 
-:badpick
-echo   %d%Invalid choice.%n%
-goto macropick
+:dostopall
+call :stopall
+goto macrolist
 
 rem ---------- rebind a key ----------
 :dobind
-if not defined rest set /p "rest=  Macro number %r%>%n% "
-if not defined rest goto macropick
-call :getnum "!rest!"
-if errorlevel 1 goto badpick
+call :askn
+if errorlevel 1 goto macropick
 if "!mk%pn%!"=="" (
     echo   %d%This macro has no keybind.%n%
     goto macropick
@@ -208,10 +193,8 @@ goto macrolist
 
 rem ---------- set slot keys (rpg, hoverboard ...) ----------
 :doopt
-if not defined rest set /p "rest=  Macro number %r%>%n% "
-if not defined rest goto macropick
-call :getnum "!rest!"
-if errorlevel 1 goto badpick
+call :askn
+if errorlevel 1 goto macropick
 if not defined mo!pn! (
     echo   %dim%This macro has no slot keys.%n%
     goto macropick
@@ -221,10 +204,8 @@ goto macrolist
 
 rem ---------- stop one macro ----------
 :dostop
-if not defined rest set /p "rest=  Macro number %r%>%n% "
-if not defined rest goto macropick
-call :getnum "!rest!"
-if errorlevel 1 goto badpick
+call :askn
+if errorlevel 1 goto macropick
 if not defined mr!pn! (
     echo   %dim%That macro is not running.%n%
     goto macropick
@@ -234,8 +215,6 @@ goto macrolist
 
 rem ---------- start a macro ----------
 :dolaunch
-call :getnum "!pick!"
-if errorlevel 1 goto badpick
 if defined mr!pn! (
     echo   %dim%That macro is already running.%n%
     goto macropick
@@ -336,14 +315,25 @@ for %%G in ("%~n1") do (
 if exist "%~1.name" set /p "md!mc!=" <"%~1.name"
 exit /b
 
-:cell
+:row
 set "num=[%1]    "
 set "nm=!md%1!                         "
 set "ky=!mk%1!          "
-set "st=       "
+set "st="
 if defined mr%1 set "st=%gr%running%n%"
-set "cm=%dim%|%n% %r%!num:~0,4!%n% %w%!nm:~0,19!%n% %dim%!ky:~0,9!%n% !st! %dim%|%n%"
+echo   %r%!num:~0,4!%n%  %w%!nm:~0,20!%n%  %dim%!ky:~0,8!%n%  !st!
 exit /b
+
+:askn
+set "pn="
+if !mcc! LEQ 0 exit /b 1
+<nul set /p "=  Macro number %dim%(0 = cancel)%n% %r%>%n% "
+choice /c !nl!0 /n >nul
+set /a "ci=!errorlevel!"
+echo.
+if !ci! GTR !mcc! exit /b 1
+set "pn=!ci!"
+exit /b 0
 
 :runopts
 set "ZT_MODE=opts"
@@ -410,13 +400,6 @@ if exist "%CFG%" for /f "usebackq tokens=1,* delims==" %%A in ("%CFG%") do if /i
     set "mu%1=1"
 )
 exit /b
-
-:getnum
-set "pn="
-echo %~1| findstr /r "^[1-9][0-9]*$" >nul || exit /b 1
-set /a pn=%~1
-if !pn! GTR !mc! exit /b 1
-exit /b 0
 
 :killrf
 set "ZT_MODE=runs"
