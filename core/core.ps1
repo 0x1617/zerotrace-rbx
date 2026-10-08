@@ -55,12 +55,17 @@ if ($env:ZT_MODE -eq 'sync') {
             $l = $l.Trim()
             if ($l -eq '' -or $l.StartsWith('#')) { continue }
             $x = $l.Split('|')
-            if ($x.Count -ne 2) { continue }
+            if ($x.Count -lt 2 -or $x.Count -gt 3) { continue }
             $g = $x[0].Trim(); $f = $x[1].Trim()
+            $nm = ''
+            if ($x.Count -eq 3) {
+                $nm = $x[2].Trim()
+                if ($nm -notmatch "^[A-Za-z0-9][A-Za-z0-9 .,()+_'-]*$") { $nm = '' }
+            }
             if ($g -notmatch '^[A-Za-z0-9][\w .-]*$') { continue }
             if ($f -notmatch '^[A-Za-z0-9][\w .-]*\.(ps1|py|bat|cmd)$') { continue }
             if ($g.Contains('..') -or $f.Contains('..')) { continue }
-            $items += ,@($g, $f)
+            $items += ,@($g, $f, $nm)
         }
         if ($items.Count -eq 0) { To 1000; exit 2 }
 
@@ -79,6 +84,8 @@ if ($env:ZT_MODE -eq 'sync') {
             New-Item -ItemType Directory -Path $gd -Force | Out-Null
             $zt = Join-Path $gd ($it[1] + '.zt')
             [IO.File]::WriteAllBytes($zt, $enc)
+            [IO.File]::AppendAllText((Join-Path $gd 'order.txt'), $it[1] + "`r`n", [Text.Encoding]::ASCII)
+            if ($it[2]) { [IO.File]::WriteAllText("$zt.name", $it[2], [Text.Encoding]::ASCII) }
             # default keybind (from a "# Key: F2" header line) is kept as plain metadata
             $txt = [Text.Encoding]::UTF8.GetString($bytes)
             $ol = @()

@@ -97,19 +97,12 @@ echo.
 echo   %dim%game:%n% %w%!game!%n%
 echo.
 
-rem --- scan macros (name shown without file type) ---
+rem --- scan macros (manifest order; name shown without file type) ---
 set /a mc=0
-for %%F in ("!sdir!\*.zt") do (
-    set /a mc+=1
-    set "mf!mc!=%%~fF"
-    set "mk!mc!="
-    set "mo!mc!="
-    if exist "%%~fF.meta" set /p "mk!mc!=" <"%%~fF.meta"
-    if exist "%%~fF.opts" set "mo!mc!=1"
-    for %%G in ("%%~nF") do (
-        set "mn!mc!=%%~nG"
-        set "mx!mc!=%%~xG"
-    )
+if exist "!sdir!\order.txt" (
+    for /f "usebackq delims=" %%N in ("!sdir!\order.txt") do if exist "!sdir!\%%N.zt" call :scanone "!sdir!\%%N.zt"
+) else (
+    for %%F in ("!sdir!\*.zt") do call :scanone "%%~fF"
 )
 
 rem --- apply saved keybinds + detect which macros are running ---
@@ -142,15 +135,24 @@ if !mc!==0 if not defined ztfix (
 
 echo   %w%[ MACROS ]%n%
 echo.
+set "bar=+--------------------------------------------+"
 if !mc!==0 (
     echo   %dim%No macros for this game yet.%n%
 ) else (
-    for /l %%i in (1,1,!mc!) do (
-        set "nm=!mn%%i!                              "
-        set "ky=!mk%%i!            "
-        set "st="
-        if defined mr%%i set "st=%gr%running%n%"
-        echo   %r%[%%i]%n% !nm:~0,26! %dim%!ky:~0,12!%n% !st!
+    for /l %%i in (1,2,!mc!) do (
+        set /a "j=%%i+1"
+        call :cell %%i
+        set "cl1=!cm!"
+        set "cl2="
+        set "bar2="
+        if !j! LEQ !mc! (
+            call :cell !j!
+            set "cl2=  !cm!"
+            set "bar2=  %dim%!bar!%n%"
+        )
+        echo   %dim%!bar!%n%!bar2!
+        echo   !cl1!!cl2!
+        echo   %dim%!bar!%n%!bar2!
     )
 )
 echo.
@@ -197,7 +199,7 @@ if "!mk%pn%!"=="" (
 set "ZT_MODE=bind"
 set "ZT_CFG=%CFG%"
 set "ZT_ID=!game!|!mn%pn%!"
-set "ZT_NAME=!mn%pn%!"
+set "ZT_NAME=!md%pn%!"
 set "ZT_FIRST="
 echo.
 call :ps
@@ -243,7 +245,7 @@ if not "!mk%pn%!"=="" if not defined mu!pn! (
     set "ZT_MODE=bind"
     set "ZT_CFG=%CFG%"
     set "ZT_ID=!game!|!mn%pn%!"
-    set "ZT_NAME=!mn%pn%!"
+    set "ZT_NAME=!md%pn%!"
     set "ZT_FIRST=1"
     set "ZT_DEFAULT=!mk%pn%!"
     echo.
@@ -268,7 +270,7 @@ set "ZT_RUN=!rf%pn%!"
 set "ZT_LAUNCH="
 if /i "!mext!"==".ps1" set "ZT_LAUNCH=ps1"
 echo.
-echo   %w%Starting%n% !mname! ...
+echo   %w%Starting%n% !md%pn%! ...
 call :ps
 if errorlevel 1 (
     echo   %d%Could not open macro. Re-launch to re-fetch it.%n%
@@ -318,11 +320,36 @@ if errorlevel 1 (
 powershell -NoProfile -ExecutionPolicy Bypass -File "%CORE%\core.ps1"
 exit /b %errorlevel%
 
+:scanone
+set /a mc+=1
+set "mf!mc!=%~1"
+set "mk!mc!="
+set "mo!mc!="
+set "md!mc!="
+if exist "%~1.meta" set /p "mk!mc!=" <"%~1.meta"
+if exist "%~1.opts" set "mo!mc!=1"
+for %%G in ("%~n1") do (
+    set "mn!mc!=%%~nG"
+    set "mx!mc!=%%~xG"
+    set "md!mc!=%%~nG"
+)
+if exist "%~1.name" set /p "md!mc!=" <"%~1.name"
+exit /b
+
+:cell
+set "num=[%1]    "
+set "nm=!md%1!                         "
+set "ky=!mk%1!          "
+set "st=       "
+if defined mr%1 set "st=%gr%running%n%"
+set "cm=%dim%|%n% %r%!num:~0,4!%n% %w%!nm:~0,19!%n% %dim%!ky:~0,9!%n% !st! %dim%|%n%"
+exit /b
+
 :runopts
 set "ZT_MODE=opts"
 set "ZT_CFG=%CFG%"
 set "ZT_ID=!game!|!mn%1!"
-set "ZT_NAME=!mn%1!"
+set "ZT_NAME=!md%1!"
 set "ZT_OPTS=!mf%1!.opts"
 set "ZT_FIRST=%~2"
 echo.
