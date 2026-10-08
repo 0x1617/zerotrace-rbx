@@ -3,7 +3,6 @@ Baddies|snow.ps1|Double Snow
 Baddies|rpg_reload.ps1|RPG Reload
 Baddies|auto_rpg.ps1|Auto RPG
 Baddies|auto_taser.ps1|Auto Taser
-Baddies|combo.ps1|Combo
 Baddies|robloxlog.ps1|Quick Log
 Baddies|roblox_reset.ps1|Quick Reset
 Baddies|anti_afk.ps1|Anti-AFK
