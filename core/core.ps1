@@ -91,8 +91,26 @@ if ($env:ZT_MODE -eq 'run') {
         [IO.File]::WriteAllBytes($env:ZT_OUT, $dec)
         if ($env:ZT_LAUNCH -eq 'ps1') {
             # background, hidden, so several macros can run at once
-            Start-Process -FilePath powershell.exe -WindowStyle Hidden -WorkingDirectory $env:TEMP `
+            $mp = Start-Process -FilePath powershell.exe -WindowStyle Hidden -WorkingDirectory $env:TEMP -PassThru `
                 -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$($env:ZT_OUT)`"")
+            # watcher: if the launcher window is closed, stop this macro too
+            try {
+                $par = (Get-CimInstance Win32_Process -Filter "ProcessId=$PID").ParentProcessId
+                if ($par -and $env:ZT_RUN) {
+                    $head = "`$par=$par;`$mac=$($mp.Id);`$run='$($env:ZT_RUN -replace "'","''")';"
+                    $body = @'
+Wait-Process -Id $par,$mac -Any -ErrorAction SilentlyContinue
+if (Get-Process -Id $par -ErrorAction SilentlyContinue) { exit }
+try { $c = (Get-Content -LiteralPath $run -ErrorAction Stop | Select-Object -First 1).Trim() } catch { exit }
+if ($c -eq "$mac") {
+    Stop-Process -Id $mac -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $run -Force -ErrorAction SilentlyContinue
+}
+'@
+                    $enc2 = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($head + $body))
+                    Start-Process -FilePath powershell.exe -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', $enc2)
+                }
+            } catch {}
         }
         exit 0
     } catch { exit 1 }

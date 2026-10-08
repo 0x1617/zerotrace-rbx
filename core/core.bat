@@ -37,20 +37,17 @@ rem ===================== SPLASH =====================
 cls
 <nul set /p "=%ESC%[?25l"
 type "%ART%"
-echo.
-echo   %g%Initialising%n%
-echo.
-set "ZT_MODE=sync"
-set "ZT_BASE=%BASE%"
-set "ZT_STORE=%STORE%"
-call :ps
-set "rc=!errorlevel!"
-<nul set /p "=%ESC%[?25l"
-echo.
-if "!rc!"=="1" echo   %dim%offline or repo unreachable - using cached macros%n%
-if "!rc!"=="2" echo   %dim%no games published in the repo yet%n%
-call :wait 400
-echo.
+call :dosync "Initialising"
+if "!rc!"=="1" (
+    echo   %dim%offline or repo unreachable - using cached macros%n%
+    call :wait 400
+    echo.
+)
+if "!rc!"=="2" (
+    echo   %dim%no games published in the repo yet%n%
+    call :wait 400
+    echo.
+)
 
 rem --- build the game list from what is in the store ---
 set /a gcount=0
@@ -125,6 +122,12 @@ for /l %%i in (1,1,!mc!) do (
     if exist "!rf%%i!" call :checkrun %%i
 )
 
+if !mc!==0 if not defined ztfix (
+    set "ztfix=1"
+    call :dosync "Repairing macro files"
+    goto macrolist
+)
+
 echo   %w%[ MACROS ]%n%
 echo.
 if !mc!==0 (
@@ -139,7 +142,7 @@ if !mc!==0 (
     )
 )
 echo.
-echo   %r%[#]%n% Start   %r%[K#]%n% Set key   %r%[S#]%n% Stop   %r%[SA]%n% Stop all
+echo   %r%[#]%n% Start   %r%[K]%n% Set key   %r%[S]%n% Stop   %r%[SA]%n% Stop all
 echo   %r%[R]%n% Refresh   %r%[B]%n% Back   %r%[0]%n% Exit
 echo.
 
@@ -150,7 +153,10 @@ set /p "pick=  %r%>%n% "
 if not defined pick goto macropick
 if "!pick!"=="0" goto quit
 if /i "!pick!"=="b" goto gamelist_back
-if /i "!pick!"=="r" goto macrolist
+if /i "!pick!"=="r" (
+    set "ztfix="
+    goto macrolist
+)
 if /i "!pick!"=="sa" (
     call :stopall
     goto macrolist
@@ -167,6 +173,8 @@ goto macropick
 
 rem ---------- rebind a key ----------
 :dobind
+if not defined rest set /p "rest=  Macro number %r%>%n% "
+if not defined rest goto macropick
 call :getnum "!rest!"
 if errorlevel 1 goto badpick
 if "!mk%pn%!"=="" (
@@ -185,6 +193,8 @@ goto macrolist
 
 rem ---------- stop one macro ----------
 :dostop
+if not defined rest set /p "rest=  Macro number %r%>%n% "
+if not defined rest goto macropick
 call :getnum "!rest!"
 if errorlevel 1 goto badpick
 if not defined mr!pn! (
@@ -271,8 +281,58 @@ exit /b 0
 
 rem ===================== SUBROUTINES =====================
 :ps
+call :psquick || call :ensureps
+if errorlevel 1 (
+    echo   %d%core.ps1 is missing and could not be repaired.%n%
+    exit /b 1
+)
 powershell -NoProfile -ExecutionPolicy Bypass -File "%CORE%\core.ps1"
 exit /b %errorlevel%
+
+:dosync
+echo.
+echo   %g%%~1%n%
+echo.
+set "ZT_MODE=sync"
+set "ZT_BASE=%BASE%"
+set "ZT_STORE=%STORE%"
+call :ps
+set "rc=!errorlevel!"
+<nul set /p "=%ESC%[2A%ESC%[1G%ESC%[0J%ESC%[?25l"
+exit /b
+
+:psquick
+if not exist "%CORE%\core.ps1" exit /b 1
+for %%F in ("%CORE%\core.ps1") do if %%~zF LSS 200 exit /b 1
+exit /b 0
+
+:psvalid
+if not exist "%~1" exit /b 1
+for %%F in ("%~1") do if %%~zF LSS 200 exit /b 1
+powershell -NoProfile -Command "$source=[IO.File]::ReadAllText('%~1');if(-not $source.Contains('$env:ZT_MODE -eq ''sync''') -or -not $source.Contains('$env:ZT_MODE -eq ''run''') -or -not $source.Contains('$env:ZT_MODE -eq ''bind''')){exit 1};$tokens=$null;$errors=$null;[System.Management.Automation.Language.Parser]::ParseFile('%~1',[ref]$tokens,[ref]$errors)>$null;if($errors.Count -gt 0){exit 1}" >nul 2>&1
+exit /b %errorlevel%
+
+:ensureps
+if not exist "%CORE%" md "%CORE%" >nul 2>&1
+echo   %dim%core.ps1 is missing or damaged - repairing...%n%
+set "pstmp=%CORE%\core.ps1.new"
+for %%T in (1 2 3) do (
+    del "!pstmp!" >nul 2>&1
+    set "psurl=%BASE%/core/core.ps1?r=!random!!random!"
+    where curl >nul 2>&1
+    if not errorlevel 1 (
+        curl -fsSL --max-time 20 -o "!pstmp!" "!psurl!" >nul 2>&1
+    ) else (
+        powershell -NoProfile -Command "try{(New-Object Net.WebClient).DownloadFile('!psurl!','!pstmp!')}catch{}" >nul 2>&1
+    )
+    call :psvalid "!pstmp!"
+    if not errorlevel 1 (
+        move /y "!pstmp!" "%CORE%\core.ps1" >nul
+        exit /b 0
+    )
+)
+del "!pstmp!" >nul 2>&1
+exit /b 1
 
 :loadkey
 if exist "%CFG%" for /f "usebackq tokens=1,* delims==" %%A in ("%CFG%") do if /i "%%A"=="!game!|!mn%1!" (
