@@ -43,6 +43,7 @@ if ($env:ZT_MODE -eq 'sync') {
     $bust  = '?r=' + [guid]::NewGuid().ToString('N')     # skip GitHub's raw cache
     $new   = "$store.new"
     [Console]::Write("$e[?25l")
+    $script:lastUrl = "$base/manifest.txt"
     try {
         To 20
         $m = (Invoke-WebRequest -UseBasicParsing -Uri "$base/manifest.txt$bust" -TimeoutSec 15).Content
@@ -74,6 +75,7 @@ if ($env:ZT_MODE -eq 'sync') {
         $i = 0
         foreach ($it in $items) {
             $url = "$base/" + [uri]::EscapeDataString($it[0]) + '/' + [uri]::EscapeDataString($it[1]) + $bust
+            $script:lastUrl = $url
             $tmp = Join-Path $new ([guid]::NewGuid().ToString('N') + '.tmp')
             try {
                 Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $tmp -TimeoutSec 30
@@ -135,10 +137,16 @@ if ($env:ZT_MODE -eq 'sync') {
                 }
             }
         } catch {}
+        Remove-Item -LiteralPath (Join-Path (Split-Path -Parent $store) 'sync.log') -Force -ErrorAction SilentlyContinue
 
         To 1000
         exit 0
     } catch {
+        try {
+            $msg = ($_.Exception.Message -replace '[\r\n]+', ' ')
+            $lg = Join-Path (Split-Path -Parent $store) 'sync.log'
+            [IO.File]::WriteAllText($lg, $msg + '  [' + ($script:lastUrl -replace '\?r=.*$', '') + ']', [Text.Encoding]::ASCII)
+        } catch {}
         if (Test-Path $new) { Remove-Item $new -Recurse -Force -ErrorAction SilentlyContinue }
         exit 1
     }

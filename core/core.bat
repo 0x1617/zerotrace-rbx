@@ -43,7 +43,10 @@ type "%ART%"
 call :dosync "Initialising"
 if "!rc!"=="1" (
     echo   %dim%offline or repo unreachable - using cached macros%n%
-    call :wait 400
+    set "zlog="
+    if exist "%ROOT%\sync.log" set /p "zlog=" <"%ROOT%\sync.log"
+    if defined zlog echo   %dim%reason: !zlog!%n%
+    if defined zlog (call :wait 3500) else (call :wait 400)
     echo.
 )
 if "!rc!"=="2" (
