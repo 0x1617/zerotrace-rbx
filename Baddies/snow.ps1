@@ -1,5 +1,8 @@
 # ZeroTrace macro: Snow (9, click, 0, click, 4, click)
 # Key: F13
+# Option: Snowball1 | Snowball 1 key | 9
+# Option: Snowball2 | Snowball 2 key | 0
+# Option: BoardKey | Hoverboard key | 4
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
 using System;
@@ -92,10 +95,19 @@ function Start-Macro([string]$Name, [string]$DefaultKey, [scriptblock]$Action) {
     }
 }
 
-# Virtual-key codes: Esc=0x1B Enter=0x0D  0-9=0x30-0x39  A-Z=0x41-0x5A
+function Opt([string]$name, [string]$default) {
+    $v = [Environment]::GetEnvironmentVariable('ZT_OPT_' + $name)
+    if ($v) { return $v } else { return $default }
+}
+
+function Vk([string]$k) { $r = Resolve-Key $k; if ($r) { return [int]$r.Vk } else { return 0 } }
+
+$vk1     = Vk (Opt 'Snowball1' '9')
+$vk2     = Vk (Opt 'Snowball2' '0')
+$vkBoard = Vk (Opt 'BoardKey' '4')
 
 Start-Macro 'Snow' 'F13' {
-    [ZT]::Tap(0x39); [ZT]::Wait(20); [ZT]::Click()
-    [ZT]::Tap(0x30); [ZT]::Wait(20); [ZT]::Click()
-    [ZT]::Tap(0x34); [ZT]::Wait(20); [ZT]::Click()
+    if ($vk1) { [ZT]::Tap($vk1); [ZT]::Wait(20); [ZT]::Click() }
+    if ($vk2) { [ZT]::Tap($vk2); [ZT]::Wait(20); [ZT]::Click() }
+    if ($vkBoard) { [ZT]::Tap($vkBoard); [ZT]::Wait(20); [ZT]::Click() }
 }

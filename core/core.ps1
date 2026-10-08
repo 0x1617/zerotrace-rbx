@@ -8,6 +8,19 @@ $e = [char]27
 $ent = [Text.Encoding]::UTF8.GetBytes('zerotrace-rbx/v1')
 $script:cur = 0
 
+function ConvertTo-KeyName($k) {
+    $kn = $k.Key.ToString()
+    $named = @{ Spacebar='Space'; LeftArrow='Left'; RightArrow='Right'; UpArrow='Up'; DownArrow='Down';
+                Enter='Enter'; Tab='Tab'; Delete='Delete'; Insert='Insert'; Home='Home'; End='End';
+                PageUp='PageUp'; PageDown='PageDown' }
+    if     ($kn -match '^D([0-9])$')       { return $matches[1] }
+    elseif ($kn -match '^NumPad([0-9])$')  { return 'Num' + $matches[1] }
+    elseif ($kn -match '^F\d{1,2}$')       { return $kn }
+    elseif ($kn -match '^[A-Z]$')          { return $kn }
+    elseif ($named.ContainsKey($kn))       { return $named[$kn] }
+    return $null
+}
+
 function Bar([int]$p) {
     $f = [int][math]::Floor($p * 40 / 1000)
     $b = '#' * $f
@@ -68,6 +81,11 @@ if ($env:ZT_MODE -eq 'sync') {
             [IO.File]::WriteAllBytes($zt, $enc)
             # default keybind (from a "# Key: F2" header line) is kept as plain metadata
             $txt = [Text.Encoding]::UTF8.GetString($bytes)
+            $ol = @()
+            foreach ($om in [regex]::Matches($txt, '(?m)^#\s*Option:\s*(\w+)\s*\|\s*([^|\r\n]+?)\s*\|\s*(\S+)\s*$')) {
+                $ol += ($om.Groups[1].Value + '|' + $om.Groups[2].Value + '|' + $om.Groups[3].Value)
+            }
+            if ($ol.Count -gt 0) { [IO.File]::WriteAllLines("$zt.opts", [string[]]$ol, (New-Object Text.UTF8Encoding($false))) }
             if ($txt -match '(?m)^#\s*Key:\s*(\S+)') {
                 [IO.File]::WriteAllText("$zt.meta", $matches[1], [Text.Encoding]::ASCII)
             }
@@ -89,6 +107,17 @@ if ($env:ZT_MODE -eq 'run') {
         $enc = [IO.File]::ReadAllBytes($env:ZT_FILE)
         $dec = [Security.Cryptography.ProtectedData]::Unprotect($enc, $ent, 'CurrentUser')
         [IO.File]::WriteAllBytes($env:ZT_OUT, $dec)
+        if ($env:ZT_CFG -and $env:ZT_ID -and (Test-Path $env:ZT_CFG)) {
+            $pre = "$($env:ZT_ID)|"
+            foreach ($cl in (Get-Content $env:ZT_CFG)) {
+                if ($cl.StartsWith($pre)) {
+                    $kv = $cl.Substring($pre.Length).Split('=', 2)
+                    if ($kv.Count -eq 2 -and $kv[0] -match '^[A-Za-z0-9]+$') {
+                        [Environment]::SetEnvironmentVariable("ZT_OPT_$($kv[0])", $kv[1], 'Process')
+                    }
+                }
+            }
+        }
         if ($env:ZT_LAUNCH -eq 'ps1') {
             # background, hidden, so several macros can run at once
             $mp = Start-Process -FilePath powershell.exe -WindowStyle Hidden -WorkingDirectory $env:TEMP -PassThru `
@@ -119,6 +148,45 @@ if ($c -eq "$mac") {
         }
         exit 0
     } catch { exit 1 }
+}
+
+if ($env:ZT_MODE -eq 'opts') {
+    $id = $env:ZT_ID; $cfg = $env:ZT_CFG
+    $first = ($env:ZT_FIRST -eq '1')
+    [Console]::Write("$e[?25h")
+    $opts = @()
+    foreach ($l in [IO.File]::ReadAllLines($env:ZT_OPTS)) {
+        $x = $l.Split('|')
+        if ($x.Count -ge 3) { $opts += ,@($x[0], $x[1], $x[2]) }
+    }
+    $lines = @()
+    if (Test-Path $cfg) { $lines = @(Get-Content $cfg | Where-Object { $_ }) }
+    if ($first) { [Console]::WriteLine("  First time setup for '$($env:ZT_NAME)'. Press the key you use in game for each item.") }
+    else        { [Console]::WriteLine("  Slot keys for '$($env:ZT_NAME)'.") }
+    foreach ($o in $opts) {
+        $cur = $o[2]
+        foreach ($l in $lines) { if ($l.StartsWith("$id|$($o[0])=")) { $cur = $l.Substring("$id|$($o[0])=".Length) } }
+        if ($first) { [Console]::WriteLine("  $($o[1])  -  Esc = default ($($o[2]))   Backspace = none") }
+        else        { [Console]::WriteLine("  $($o[1])  (now: $cur)  -  Esc = keep   Backspace = none") }
+        $val = $null
+        while ($null -eq $val) {
+            $k = [Console]::ReadKey($true)
+            if ($k.Key -eq 'Escape')    { if ($first) { $val = $o[2] } else { $val = $cur } }
+            elseif ($k.Key -eq 'Backspace') { $val = 'none' }
+            else {
+                $nm = ConvertTo-KeyName $k
+                if ($nm) { $val = $nm } else { [Console]::WriteLine("  That key can't be used, try another.") }
+            }
+        }
+        [Console]::WriteLine("    -> $val")
+        $lines = @($lines | Where-Object { -not $_.StartsWith("$id|$($o[0])=") })
+        $lines += "$id|$($o[0])=$val"
+    }
+    $lines = @($lines | Where-Object { -not $_.StartsWith("$id|_opts=") })
+    $lines += "$id|_opts=1"
+    [IO.File]::WriteAllLines($cfg, [string[]]$lines)
+    Start-Sleep -Milliseconds 500
+    exit 0
 }
 
 if ($env:ZT_MODE -eq 'runs') {

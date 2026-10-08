@@ -1,5 +1,9 @@
-# ZeroTrace macro: Combo (weapon slots with click, then board key)
+# ZeroTrace macro: Combo (up to 3 weapons with click, then hoverboard)
 # Key: F7
+# Option: Weapon1 | Weapon 1 key | 1
+# Option: Weapon2 | Weapon 2 key | 2
+# Option: Weapon3 | Weapon 3 key | 3
+# Option: BoardKey | Hoverboard key | 4
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
 using System;
@@ -106,31 +110,33 @@ function Start-Macro([string]$Name, [string]$DefaultKey, [scriptblock]$Action) {
     }
 }
 
+function Opt([string]$name, [string]$default) {
+    $v = [Environment]::GetEnvironmentVariable('ZT_OPT_' + $name)
+    if ($v) { return $v } else { return $default }
+}
+
 function Vk([string]$k) { $r = Resolve-Key $k; if ($r) { return [int]$r.Vk } else { return 0 } }
 
 $script:clock = [Diagnostics.Stopwatch]::StartNew()
 
 
-# Weapons used in order: slot key + delay (ms) before the next weapon. Delete a line to skip it.
-$Weapons = @(
-    @{ Key = '1'; Delay = 50 },
-    @{ Key = '2'; Delay = 50 },
-    @{ Key = '3'; Delay = 50 }
-)
-$BoardKey  = '4'
-$AutoBoard = $true
+$WeaponDelay = 50
 
-$vkBoard = Vk $BoardKey
 $combo = @()
-foreach ($w in $Weapons) { $combo += ,@((Vk $w.Key), [int]$w.Delay) }
+$defaults = @{ Weapon1 = '1'; Weapon2 = '2'; Weapon3 = '3' }
+foreach ($n in 'Weapon1', 'Weapon2', 'Weapon3') {
+    $vk = Vk (Opt $n $defaults[$n])
+    if ($vk) { $combo += $vk }
+}
+$vkBoard = Vk (Opt 'BoardKey' '4')
 
 Start-Macro 'Combo' 'F7' {
     for ($i = 0; $i -lt $combo.Count; $i++) {
-        [ZT]::Tap($combo[$i][0]); [ZT]::Wait(15)
+        [ZT]::Tap($combo[$i]); [ZT]::Wait(15)
         [ZT]::Click()
-        if ($i -lt $combo.Count - 1) { [ZT]::Wait($combo[$i][1]) }
+        if ($i -lt $combo.Count - 1) { [ZT]::Wait($WeaponDelay) }
     }
-    if ($AutoBoard) {
+    if ($vkBoard) {
         [ZT]::Wait(10)
         [ZT]::Tap($vkBoard); [ZT]::Wait(25)
         [ZT]::Click()

@@ -103,7 +103,9 @@ for %%F in ("!sdir!\*.zt") do (
     set /a mc+=1
     set "mf!mc!=%%~fF"
     set "mk!mc!="
+    set "mo!mc!="
     if exist "%%~fF.meta" set /p "mk!mc!=" <"%%~fF.meta"
+    if exist "%%~fF.opts" set "mo!mc!=1"
     for %%G in ("%%~nF") do (
         set "mn!mc!=%%~nG"
         set "mx!mc!=%%~xG"
@@ -120,9 +122,13 @@ if exist "%RUNDIR%\*.run" (
 for /l %%i in (1,1,!mc!) do (
     set "mr%%i="
     set "mu%%i="
-    if exist "%CFG%" for /f "usebackq tokens=1,* delims==" %%A in ("%CFG%") do if /i "%%A"=="!game!|!mn%%i!" (
-        set "mk%%i=%%B"
-        set "mu%%i=1"
+    set "ou%%i="
+    if exist "%CFG%" for /f "usebackq tokens=1,* delims==" %%A in ("%CFG%") do (
+        if /i "%%A"=="!game!|!mn%%i!" (
+            set "mk%%i=%%B"
+            set "mu%%i=1"
+        )
+        if /i "%%A"=="!game!|!mn%%i!|_opts" set "ou%%i=1"
     )
     set "rf%%i=%RUNDIR%\!game!__!mn%%i!!mx%%i!.run"
     if exist "!rf%%i!" set "mr%%i=1"
@@ -149,7 +155,7 @@ if !mc!==0 (
 )
 echo.
 echo   %r%[#]%n% Start   %r%[K]%n% Set key   %r%[S]%n% Stop   %r%[SA]%n% Stop all
-echo   %r%[R]%n% Refresh   %r%[B]%n% Back   %r%[0]%n% Exit
+echo   %r%[O]%n% Slot keys   %r%[R]%n% Refresh   %r%[B]%n% Back   %r%[0]%n% Exit
 echo.
 
 :macropick
@@ -171,6 +177,7 @@ set "c1=!pick:~0,1!"
 set "rest=!pick:~1!"
 if /i "!c1!"=="k" goto dobind
 if /i "!c1!"=="s" goto dostop
+if /i "!c1!"=="o" goto doopt
 goto dolaunch
 
 :badpick
@@ -195,6 +202,19 @@ set "ZT_FIRST="
 echo.
 call :ps
 <nul set /p "=%ESC%[?25l"
+goto macrolist
+
+rem ---------- set slot keys (rpg, hoverboard ...) ----------
+:doopt
+if not defined rest set /p "rest=  Macro number %r%>%n% "
+if not defined rest goto macropick
+call :getnum "!rest!"
+if errorlevel 1 goto badpick
+if not defined mo!pn! (
+    echo   %dim%This macro has no slot keys.%n%
+    goto macropick
+)
+call :runopts !pn!
 goto macrolist
 
 rem ---------- stop one macro ----------
@@ -232,12 +252,15 @@ if not "!mk%pn%!"=="" if not defined mu!pn! (
     call :loadkey !pn!
     <nul set /p "=%ESC%[?25l"
 )
+if defined mo!pn! if not defined ou!pn! call :runopts !pn! 1
 set "mfile=!mf%pn%!"
 set "mname=!mn%pn%!"
 set "mext=!mx%pn%!"
 set "tdir=%TEMP%\zt_%random%%random%"
 md "!tdir!" >nul 2>&1
 set "ZT_MODE=run"
+set "ZT_CFG=%CFG%"
+set "ZT_ID=!game!|!mn%pn%!"
 set "ZT_FILE=!mfile!"
 set "ZT_OUT=!tdir!\!mname!!mext!"
 set "ZT_KEY=!mk%pn%!"
@@ -294,6 +317,20 @@ if errorlevel 1 (
 )
 powershell -NoProfile -ExecutionPolicy Bypass -File "%CORE%\core.ps1"
 exit /b %errorlevel%
+
+:runopts
+set "ZT_MODE=opts"
+set "ZT_CFG=%CFG%"
+set "ZT_ID=!game!|!mn%1!"
+set "ZT_NAME=!mn%1!"
+set "ZT_OPTS=!mf%1!.opts"
+set "ZT_FIRST=%~2"
+echo.
+call :ps
+set "ZT_FIRST="
+set "ou%1=1"
+<nul set /p "=%ESC%[?25l"
+exit /b
 
 :dosync
 echo.

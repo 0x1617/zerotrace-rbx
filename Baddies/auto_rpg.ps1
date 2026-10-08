@@ -1,5 +1,7 @@
-# ZeroTrace macro: Auto RPG (RPG slot, click, board key, click)
+# ZeroTrace macro: Auto RPG (RPG slot, click, hoverboard, click)
 # Key: F5
+# Option: RpgSlot | RPG slot key | 1
+# Option: BoardKey | Hoverboard key | 4
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
 using System;
@@ -106,22 +108,23 @@ function Start-Macro([string]$Name, [string]$DefaultKey, [scriptblock]$Action) {
     }
 }
 
+function Opt([string]$name, [string]$default) {
+    $v = [Environment]::GetEnvironmentVariable('ZT_OPT_' + $name)
+    if ($v) { return $v } else { return $default }
+}
+
 function Vk([string]$k) { $r = Resolve-Key $k; if ($r) { return [int]$r.Vk } else { return 0 } }
 
 $script:clock = [Diagnostics.Stopwatch]::StartNew()
 
 
-$RpgSlot   = '1'
-$BoardKey  = '4'
-$AutoBoard = $true
-
-$vkSlot = Vk $RpgSlot
-$vkBoard = Vk $BoardKey
+$vkSlot  = Vk (Opt 'RpgSlot' '1')
+$vkBoard = Vk (Opt 'BoardKey' '4')
 
 Start-Macro 'Auto RPG' 'F5' {
-    [ZT]::Tap($vkSlot); [ZT]::Wait(50)
+    if ($vkSlot) { [ZT]::Tap($vkSlot); [ZT]::Wait(50) }
     [ZT]::Click()
-    if ($AutoBoard) {
+    if ($vkBoard) {
         [ZT]::Wait(20)
         [ZT]::Tap($vkBoard); [ZT]::Wait(40)
         [ZT]::Click()

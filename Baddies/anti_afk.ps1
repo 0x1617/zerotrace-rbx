@@ -1,5 +1,6 @@
-# ZeroTrace macro: Anti AFK (toggle: trade key every 10s, optional crouch every 15s)
+# ZeroTrace macro: Anti AFK (toggle: trade key every 10s)
 # Key: F8
+# Option: TradeKey | Trade sign key | T
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
 using System;
@@ -106,6 +107,11 @@ function Start-Macro([string]$Name, [string]$DefaultKey, [scriptblock]$Action) {
     }
 }
 
+function Opt([string]$name, [string]$default) {
+    $v = [Environment]::GetEnvironmentVariable('ZT_OPT_' + $name)
+    if ($v) { return $v } else { return $default }
+}
+
 function Vk([string]$k) { $r = Resolve-Key $k; if ($r) { return [int]$r.Vk } else { return 0 } }
 
 $script:clock = [Diagnostics.Stopwatch]::StartNew()
@@ -150,11 +156,9 @@ function Start-Toggle([string]$Name, [string]$DefaultKey, [scriptblock]$OnStart,
     }
 }
 
-$AntiAfk    = $true
-$TradeKey   = 'T'
 $AutoCrouch = $false
 
-$vkTrade = Vk $TradeKey
+$vkTrade = Vk (Opt 'TradeKey' 'T')
 $vkCtrl  = 0x11
 $script:nextAfk = 0
 $script:nextCrouch = 0
@@ -165,7 +169,7 @@ Start-Toggle 'Anti AFK' 'F8' {
     $script:nextCrouch = $now + 15000
 } {
     $now = $script:clock.ElapsedMilliseconds
-    if ($AntiAfk -and $vkTrade -ne 0 -and $now -ge $script:nextAfk) {
+    if ($vkTrade -and $now -ge $script:nextAfk) {
         [ZT]::Tap($vkTrade)
         $script:nextAfk = $now + 10000
     }

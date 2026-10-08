@@ -1,5 +1,7 @@
-# ZeroTrace macro: RPG Reload (RPG slot, R, board key, click)
+# ZeroTrace macro: RPG Reload (RPG slot, R, hoverboard, click)
 # Key: F4
+# Option: RpgSlot | RPG slot key | 1
+# Option: BoardKey | Hoverboard key | 4
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
 using System;
@@ -106,22 +108,23 @@ function Start-Macro([string]$Name, [string]$DefaultKey, [scriptblock]$Action) {
     }
 }
 
+function Opt([string]$name, [string]$default) {
+    $v = [Environment]::GetEnvironmentVariable('ZT_OPT_' + $name)
+    if ($v) { return $v } else { return $default }
+}
+
 function Vk([string]$k) { $r = Resolve-Key $k; if ($r) { return [int]$r.Vk } else { return 0 } }
 
 $script:clock = [Diagnostics.Stopwatch]::StartNew()
 
 
-$RpgSlot   = '1'
-$BoardKey  = '4'
-$AutoBoard = $true
-
-$vkSlot = Vk $RpgSlot
-$vkBoard = Vk $BoardKey
+$vkSlot  = Vk (Opt 'RpgSlot' '1')
+$vkBoard = Vk (Opt 'BoardKey' '4')
 
 Start-Macro 'RPG Reload' 'F4' {
-    [ZT]::Tap($vkSlot); [ZT]::Wait(5)
+    if ($vkSlot) { [ZT]::Tap($vkSlot); [ZT]::Wait(5) }
     [ZT]::Tap(0x52); [ZT]::Wait(5)
-    if ($AutoBoard) {
+    if ($vkBoard) {
         [ZT]::Wait(10)
         [ZT]::Tap($vkBoard); [ZT]::Wait(25)
         [ZT]::Click()
