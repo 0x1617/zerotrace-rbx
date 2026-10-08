@@ -6,6 +6,7 @@ rem ===================== CONFIG =====================
 rem Public repo the games/macros are fetched from on every launch.
 set "BASE=https://raw.githubusercontent.com/0x1617/zerotrace-rbx/main"
 rem Local data (encrypted macros, your keybinds, runtime files)
+set "SELF=%~f0"
 set "ROOT=%LOCALAPPDATA%\ZeroTrace"
 set "CORE=%ROOT%\core"
 set "STORE=%ROOT%\store"
@@ -76,8 +77,7 @@ if !gcc! GTR 9 set /a gcc=9
 set "gl="
 for /l %%i in (1,1,!gcc!) do set "gl=!gl!%%i"
 <nul set /p "=  %r%>%n% "
-choice /c !gl!0 /n >nul
-set /a "ci=!errorlevel!"
+call :getkey "!gl!0"
 echo.
 if !ci! GTR !gcc! goto quit
 set "gsel=!ci!"
@@ -159,8 +159,7 @@ echo.
 :macropick
 <nul set /p "=%ESC%[?25l"
 <nul set /p "=  %r%>%n% "
-choice /c !nl!KSAORB0 /n >nul
-set /a "ci=!errorlevel!"
+call :getkey "!nl!KSAORB0"
 echo.
 if !ci! LEQ !mcc! (
     set "pn=!ci!"
@@ -333,12 +332,30 @@ if defined mr%1 set "st=%gr%running%n%"
 set "cm=%r%!num:~0,4!%n%%w%!nm:~0,16!%n% %dim%!ky:~0,5!%n% !st!"
 exit /b
 
+:getkey
+rem silent single-key reader. %1 = allowed characters; sets ci = position (1-based).
+rem unlike choice it never beeps - keys not in the list are just ignored.
+set "gk="
+for /f "delims=" %%A in ('xcopy /w "%SELF%" "%SELF%" 2^>nul') do if not defined gk set "gk=%%A"
+if not defined gk goto getkey
+set "gk=!gk:~-1!"
+set "lst=%~1"
+set /a gn=0
+:getkey_loop
+for %%n in (!gn!) do set "gc=!lst:~%%n,1!"
+if not defined gc goto getkey
+if /i "!gc!"=="!gk!" (
+    set /a "ci=gn+1"
+    exit /b 0
+)
+set /a gn+=1
+goto getkey_loop
+
 :askn
 set "pn="
 if !mcc! LEQ 0 exit /b 1
 <nul set /p "=  Macro number %dim%(0 = cancel)%n% %r%>%n% "
-choice /c !nl!0 /n >nul
-set /a "ci=!errorlevel!"
+call :getkey "!nl!0"
 echo.
 if !ci! GTR !mcc! exit /b 1
 set "pn=!ci!"
