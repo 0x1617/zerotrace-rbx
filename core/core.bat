@@ -139,8 +139,17 @@ echo.
 if !mc!==0 (
     echo   %dim%No macros for this game yet.%n%
 ) else (
-    echo   %dim%#     macro                 key       state%n%
-    for /l %%i in (1,1,!mc!) do call :row %%i
+    for /l %%i in (1,2,!mc!) do (
+        set /a "j=%%i+1"
+        call :cell %%i
+        set "cl1=!cm!"
+        set "cl2="
+        if !j! LEQ !mc! (
+            call :cell !j!
+            set "cl2=  %dim%^|%n%  !cm!"
+        )
+        echo   !cl1!!cl2!
+    )
 )
 echo.
 echo   %r%[1-9]%n% Start  %r%[K]%n% Set key  %r%[S]%n% Stop  %r%[A]%n% Stop all  %r%[O]%n% Slot keys
@@ -315,13 +324,13 @@ for %%G in ("%~n1") do (
 if exist "%~1.name" set /p "md!mc!=" <"%~1.name"
 exit /b
 
-:row
+:cell
 set "num=[%1]    "
 set "nm=!md%1!                         "
 set "ky=!mk%1!          "
-set "st="
+set "st=       "
 if defined mr%1 set "st=%gr%running%n%"
-echo   %r%!num:~0,4!%n%  %w%!nm:~0,20!%n%  %dim%!ky:~0,8!%n%  !st!
+set "cm=%r%!num:~0,4!%n%%w%!nm:~0,16!%n% %dim%!ky:~0,5!%n% !st!"
 exit /b
 
 :askn
